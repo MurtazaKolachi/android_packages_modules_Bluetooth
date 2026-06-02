@@ -15,11 +15,13 @@
  */
 
 #include "os/system_properties.h"
+#include <sys/system_properties.h>
 
 #include <bluetooth/log.h>
 #include <cutils/properties.h>
 
 #include <array>
+#include <sys/system_properties.h>
 #include <cctype>
 
 #include "common/strings.h"
@@ -28,12 +30,20 @@ namespace bluetooth {
 namespace os {
 
 std::optional<std::string> GetSystemProperty(const std::string& property) {
-  std::array<char, PROPERTY_VALUE_MAX> value_array{0};
-  auto value_len = property_get(property.c_str(), value_array.data(), nullptr);
-  if (value_len <= 0) {
+  const prop_info* pi = __system_property_find(property.c_str());
+  if (pi == nullptr) {
     return std::nullopt;
   }
-  return std::string(value_array.data(), value_len);
+
+  std::string value;
+  __system_property_read_callback(
+      pi,
+      [](void* cookie, const char*, const char* value, uint32_t) {
+        *static_cast<std::string*>(cookie) = value;
+      },
+      &value);
+
+  return value;
 }
 
 bool SetSystemProperty(const std::string& property, const std::string& value) {
